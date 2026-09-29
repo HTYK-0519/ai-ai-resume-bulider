@@ -16,6 +16,16 @@
     href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap"
     rel="stylesheet">
 
+  <!-- PWA & 모바일 앱 지원 메타 태그 -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="여행 플래너">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon.svg') }}">
+
   <!-- 커스텀 스타일시트 -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -70,6 +80,14 @@
           <h1>AI 맞춤형 여행 플래너</h1>
           <span class="logo-sub">AI Travel Itinerary Planner</span>
         </div>
+      </div>
+      <!-- 상단 중앙: PWA 앱 설치 버튼 -->
+      <div class="header-pwa-center" id="headerPwaCenter">
+        <button type="button" id="btnPwaInstall" class="btn-pwa-install" title="홈 화면에 앱으로 설치하여 언제든 빠르게 사용하세요">
+          <i class="fa-solid fa-cloud-arrow-down pwa-icon"></i>
+          <span class="pwa-text">앱 설치하기</span>
+          <span class="pwa-badge">PWA</span>
+        </button>
       </div>
       <div class="header-badge">
         <span class="ai-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> Gemini 3.5 Flash-Lite Engine</span>
@@ -528,6 +546,36 @@
 
     </section>
   </main>
+
+  <!-- iOS Safari PWA 설치 안내 모달 -->
+  <div id="pwaIosModal" class="pwa-ios-modal" style="display: none;">
+    <div class="pwa-ios-backdrop" id="pwaIosBackdrop"></div>
+    <div class="pwa-ios-content">
+      <div class="pwa-ios-header">
+        <div class="pwa-ios-icon">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+        </div>
+        <h3>홈 화면에 앱으로 추가하기</h3>
+        <button type="button" class="btn-pwa-ios-close" id="btnPwaIosClose">&times;</button>
+      </div>
+      <div class="pwa-ios-body">
+        <p class="pwa-ios-desc">iPhone/iPad(Safari)에서는 아래 2단계로 홈 화면에 앱을 추가할 수 있습니다.</p>
+        <ol class="pwa-ios-steps">
+          <li>
+            <span class="step-num">1</span>
+            <span>Safari 브라우저 하단(또는 상단)의 <strong>[공유] 아이콘</strong> (<i class="fa-solid fa-arrow-up-from-bracket"></i>) 을 누릅니다.</span>
+          </li>
+          <li>
+            <span class="step-num">2</span>
+            <span>메뉴에서 <strong>[홈 화면에 추가]</strong> (<i class="fa-regular fa-square-plus"></i>) 를 선택하면 설치가 완료됩니다!</span>
+          </li>
+        </ol>
+      </div>
+      <div class="pwa-ios-footer">
+        <button type="button" class="btn-pwa-ios-confirm" id="btnPwaIosConfirm">확인했습니다</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 토스트 알림 (복사 완료 알림 등) -->
   <div id="toast" class="toast">일정이 클립보드에 복사되었습니다!</div>

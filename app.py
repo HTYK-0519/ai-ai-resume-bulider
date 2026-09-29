@@ -3,7 +3,7 @@ import json
 import time
 import random
 import logging
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 
 # .env 파일에서 환경변수를 로드합니다.
@@ -347,6 +347,21 @@ def call_gemini_api(prompt: str, system_instruction: str) -> dict:
 def index():
     """메인 웹페이지 렌더링"""
     return render_template("index.html")
+
+
+@app.route("/manifest.json")
+def serve_manifest():
+    """PWA Web App Manifest 파일 제공"""
+    return send_from_directory("static", "manifest.json", mimetype="application/manifest+json")
+
+
+@app.route("/sw.js")
+def serve_service_worker():
+    """PWA Service Worker 스크립트 제공 (루트 스코프 '/' 허용)"""
+    response = send_from_directory("static", "sw.js", mimetype="application/javascript")
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @app.route("/api/verify-pin", methods=["POST"])
