@@ -22,6 +22,43 @@
 
 <body>
 
+  <!-- 4자리 보안 잠금 화면 (PIN Lock Overlay) -->
+  <div id="pinLockOverlay" class="pin-lock-overlay">
+    <div class="pin-lock-card" id="pinLockCard">
+      <div class="pin-lock-header">
+        <div class="lock-icon-circle">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h2>보안 접속 잠금화면</h2>
+        <p class="pin-sub-text">본 서비스는 API 호출 보호를 위해 인증된 사용자만 이용 가능합니다.<br><strong>비밀번호 4자리</strong>를 입력해주세요.</p>
+      </div>
+
+      <form id="pinForm" class="pin-form" onsubmit="return false;">
+        <div class="pin-inputs-container" id="pinInputsContainer">
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus>
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+        </div>
+
+        <div id="pinErrorMessage" class="pin-error-text" style="display: none;">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="pinErrorSpan">비밀번호가 올바르지 않습니다.</span>
+        </div>
+
+        <div class="pin-actions">
+          <label class="remember-pin-label">
+            <input type="checkbox" id="chkRememberPin" checked>
+            <span>이 기기에서 인증 유지하기</span>
+          </label>
+          <button type="button" id="btnUnlock" class="btn-unlock">
+            <span><i class="fa-solid fa-unlock-keyhole"></i> 잠금 해제</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- 상단 네비게이션 헤더 -->
   <header class="app-header">
     <div class="header-container">
@@ -36,6 +73,9 @@
       </div>
       <div class="header-badge">
         <span class="ai-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> Gemini 3.5 Flash-Lite Engine</span>
+        <button type="button" id="btnRelock" class="btn-relock" title="서비스 다시 잠그기">
+          <i class="fa-solid fa-lock"></i> 잠금
+        </button>
       </div>
     </div>
   </header>

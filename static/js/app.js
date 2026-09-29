@@ -416,16 +416,24 @@ document.addEventListener('DOMContentLoaded', () => {
     showLoadingState();
 
     try {
-      // Flask 백엔드 REST API 호출
+      // Flask 백엔드 REST API 호출 (4자리 PIN 인증 포함)
+      const currentPin = getStoredPin();
       const response = await fetch('/api/plan', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Access-PIN': currentPin
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, access_pin: currentPin })
       });
 
       const resData = await response.json();
+
+      if (response.status === 401 || resData.error_type === 'AUTH_REQUIRED') {
+        clearStoredPin();
+        showPinLockOverlay('접근 권한이 없습니다. 4자리 비밀번호를 다시 입력해주세요.');
+        throw new Error(resData.error || '접근 권한이 없습니다. 비밀번호를 입력해주세요.');
+      }
 
       if (!response.ok || !resData.success) {
         throw new Error(resData.error || '일정 생성에 실패했습니다.');
@@ -980,4 +988,218 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+
+  // ==========================================================================
+  // 11. 4자리 보안 비밀번호(PIN) 잠금 화면 관리 로직
+  // ==========================================================================
+  const pinLockOverlay = document.getElementById('pinLockOverlay');
+  const pinLockCard = document.getElementById('pinLockCard');
+  const pinInputs = document.querySelectorAll('.pin-digit');
+  const pinErrorMessage = document.getElementById('pinErrorMessage');
+  const pinErrorSpan = document.getElementById('pinErrorSpan');
+  const chkRememberPin = document.getElementById('chkRememberPin');
+  const btnUnlock = document.getElementById('btnUnlock');
+  const btnRelock = document.getElementById('btnRelock');
+
+  function getStoredPin() {
+    return localStorage.getItem('travel_planner_pin') || sessionStorage.getItem('travel_planner_pin') || '';
+  }
+
+  function setStoredPin(pin, remember) {
+    if (remember) {
+      localStorage.setItem('travel_planner_pin', pin);
+      sessionStorage.removeItem('travel_planner_pin');
+    } else {
+      sessionStorage.setItem('travel_planner_pin', pin);
+      localStorage.removeItem('travel_planner_pin');
+    }
+  }
+
+  function clearStoredPin() {
+    localStorage.removeItem('travel_planner_pin');
+    sessionStorage.removeItem('travel_planner_pin');
+  }
+
+  function showPinLockOverlay(msg = '') {
+    if (!pinLockOverlay) return;
+    pinLockOverlay.style.display = 'flex';
+    pinLockOverlay.classList.remove('hidden');
+    if (msg) {
+      showPinError(msg);
+    } else {
+      hidePinError();
+    }
+    resetPinInputs();
+  }
+
+  function hidePinLockOverlay() {
+    if (!pinLockOverlay) return;
+    pinLockOverlay.classList.add('hidden');
+    setTimeout(() => {
+      pinLockOverlay.style.display = 'none';
+    }, 320);
+  }
+
+  function showPinError(msg) {
+    if (pinErrorMessage && pinErrorSpan) {
+      pinErrorSpan.textContent = msg || '비밀번호 4자리가 일치하지 않습니다.';
+      pinErrorMessage.style.display = 'flex';
+    }
+    if (pinLockCard) {
+      pinLockCard.classList.remove('shake');
+      void pinLockCard.offsetWidth; // reflow 트리거
+      pinLockCard.classList.add('shake');
+    }
+    pinInputs.forEach(i => i.classList.add('error'));
+  }
+
+  function hidePinError() {
+    if (pinErrorMessage) pinErrorMessage.style.display = 'none';
+    pinInputs.forEach(i => i.classList.remove('error'));
+  }
+
+  function resetPinInputs() {
+    pinInputs.forEach(i => {
+      i.value = '';
+      i.classList.remove('error');
+    });
+    if (pinInputs.length > 0) {
+      setTimeout(() => pinInputs[0].focus(), 60);
+    }
+  }
+
+  function getEnteredPin() {
+    let pin = '';
+    pinInputs.forEach(i => {
+      pin += (i.value || '').trim();
+    });
+    return pin;
+  }
+
+  async function verifyAndUnlockPin(pin) {
+    if (!pin || pin.length < 4) {
+      showPinError('비밀번호 4자리를 모두 입력해주세요.');
+      return;
+    }
+
+    try {
+      if (btnUnlock) {
+        btnUnlock.disabled = true;
+        btnUnlock.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 확인 중...';
+      }
+
+      const res = await fetch('/api/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pin })
+      });
+      const resData = await res.json();
+
+      if (res.ok && resData.success) {
+        // 성공: 저장 및 잠금 해제
+        const remember = chkRememberPin ? chkRememberPin.checked : true;
+        setStoredPin(pin, remember);
+        hidePinError();
+        hidePinLockOverlay();
+        showToast('🔓 서비스 잠금이 해제되었습니다!');
+      } else {
+        showPinError(resData.error || '비밀번호가 올바르지 않습니다.');
+        resetPinInputs();
+      }
+    } catch (e) {
+      console.error('PIN verify error:', e);
+      showPinError('서버 연결 중 오류가 발생했습니다. 다시 시도해주세요.');
+      resetPinInputs();
+    } finally {
+      if (btnUnlock) {
+        btnUnlock.disabled = false;
+        btnUnlock.innerHTML = '<span><i class="fa-solid fa-unlock-keyhole"></i> 잠금 해제</span>';
+      }
+    }
+  }
+
+  // 4자리 PIN 입력창 오토포커스 / 백스페이스 / 붙여넣기 이벤트 바인딩
+  pinInputs.forEach((input, idx) => {
+    input.addEventListener('input', (e) => {
+      hidePinError();
+      const val = e.target.value.replace(/[^0-9]/g, '');
+      e.target.value = val ? val[0] : '';
+
+      if (val && idx < pinInputs.length - 1) {
+        pinInputs[idx + 1].focus();
+      }
+
+      const currentPin = getEnteredPin();
+      if (currentPin.length === 4) {
+        verifyAndUnlockPin(currentPin);
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !input.value && idx > 0) {
+        pinInputs[idx - 1].focus();
+      } else if (e.key === 'Enter') {
+        const currentPin = getEnteredPin();
+        verifyAndUnlockPin(currentPin);
+      }
+    });
+
+    // 4자리 일괄 붙여넣기 (Ctrl+V) 지원
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
+      const digits = pasted.replace(/[^0-9]/g, '').slice(0, 4);
+      if (digits) {
+        digits.split('').forEach((d, dIdx) => {
+          if (pinInputs[dIdx]) pinInputs[dIdx].value = d;
+        });
+        if (digits.length === 4) {
+          verifyAndUnlockPin(digits);
+        } else if (pinInputs[digits.length]) {
+          pinInputs[digits.length].focus();
+        }
+      }
+    });
+  });
+
+  if (btnUnlock) {
+    btnUnlock.addEventListener('click', () => {
+      verifyAndUnlockPin(getEnteredPin());
+    });
+  }
+
+  if (btnRelock) {
+    btnRelock.addEventListener('click', () => {
+      clearStoredPin();
+      showPinLockOverlay('서비스가 잠겼습니다. 4자리 비밀번호를 입력해주세요.');
+    });
+  }
+
+  // 초기 로드 시 기존 저장된 PIN 유효성 자동 검증
+  async function checkInitialPinAuth() {
+    const savedPin = getStoredPin();
+    if (!savedPin || savedPin.length < 4) {
+      showPinLockOverlay();
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: savedPin })
+      });
+      const resData = await res.json();
+      if (res.ok && resData.success) {
+        hidePinLockOverlay();
+      } else {
+        clearStoredPin();
+        showPinLockOverlay('비밀번호가 변경되었습니다. 다시 입력해주세요.');
+      }
+    } catch (e) {
+      showPinLockOverlay();
+    }
+  }
+
+  checkInitialPinAuth();
 });

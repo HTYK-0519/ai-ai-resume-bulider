@@ -19,6 +19,7 @@ app = Flask(__name__)
 # 설정값 불러오기
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
+ACCESS_PIN = os.getenv("ACCESS_PIN", "1234").strip()
 PORT = int(os.getenv("PORT", 5000))
 
 
@@ -258,16 +259,19 @@ def call_gemini_api(prompt: str, system_instruction: str) -> dict:
     # 공식 Google GenAI 클라이언트 초기화
     client = genai.Client(api_key=GEMINI_API_KEY)
 
-    # 모델 후보 목록 (gemini-3.5-flash-lite 최우선, 장애 시 안정적인 gemini-3.6-flash 및 대체 모델 자동 시도)
+    # .env에 설정된 모델(기본값: gemini-3.5-flash-lite)을 1순위 최우선 모델로 배치
+    configured_model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip() or "gemini-3.5-flash-lite"
+
+    # 모델 후보 목록 (.env 모델 최우선 시도 후 장애 시 안정적인 대체 모델 순차 시도)
     candidate_models = [
+        configured_model,
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
-        DEFAULT_MODEL,
         "gemini-3.8-flash",
         "gemini-flash-lite-latest",
         "gemini-flash-latest",
     ]
-    # 중복 제거 (gemini-3.5-flash-lite가 항상 첫 번째로 유지됨)
+    # 중복 제거 (.env에서 지정한 모델이 항상 첫 번째로 유지됨)
     models_to_try = []
     for m in candidate_models:
         if m and m not in models_to_try:
@@ -276,8 +280,8 @@ def call_gemini_api(prompt: str, system_instruction: str) -> dict:
     last_exception = None
 
     for model_name in models_to_try:
-        # gemini-3.5-flash-lite는 최우선 모델로 최대 10회까지 시도, 그 외 대체 모델은 3회 시도
-        max_attempts = 10 if "gemini-3.5-flash-lite" in model_name else 3
+        # .env 지정 모델 및 gemini-3.5-flash-lite는 최대 10회까지 시도, 그 외 대체 백업 모델은 3회 시도
+        max_attempts = 10 if (model_name == configured_model or "gemini-3.5-flash-lite" in model_name) else 3
 
         for attempt in range(max_attempts):
             try:
@@ -345,6 +349,24 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/api/verify-pin", methods=["POST"])
+def verify_access_pin():
+    """
+    4자리 보안 접근 비밀번호(PIN) 검증 엔드포인트
+    """
+    data = request.get_json() or {}
+    input_pin = str(data.get("pin", "")).strip()
+
+    # ACCESS_PIN이 비어 있으면 누구나 접근 가능
+    if not ACCESS_PIN:
+        return jsonify({"success": True, "message": "인증 완료"}), 200
+
+    if input_pin == ACCESS_PIN:
+        return jsonify({"success": True, "message": "인증 완료"}), 200
+    else:
+        return jsonify({"success": False, "error": "비밀번호 4자리가 일치하지 않습니다."}), 401
+
+
 @app.route("/api/plan", methods=["POST"])
 def generate_travel_plan():
     """
@@ -352,8 +374,18 @@ def generate_travel_plan():
     Gemini API를 통해 맞춤형 여행 일정을 생성하는 REST API 엔드포인트
     """
     try:
+        # 0. 4자리 보안 비밀번호(PIN) 검증 (무단/크롤링 API 호출 차단)
+        data = request.get_json() or {}
+        if ACCESS_PIN:
+            client_pin = request.headers.get("X-Access-PIN", "").strip() or str(data.get("access_pin", "")).strip()
+            if client_pin != ACCESS_PIN:
+                return jsonify({
+                    "success": False,
+                    "error": "접근 권한이 없습니다. 4자리 비밀번호를 올바르게 입력해주세요.",
+                    "error_type": "AUTH_REQUIRED"
+                }), 401
+
         # 1. 클라이언트 전송 JSON 검증
-        data = request.get_json()
         if not data:
             return jsonify({"success": False, "error": "전송된 데이터가 올바른 JSON 형식이 아닙니다."}), 400
 
