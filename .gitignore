@@ -1,0 +1,23 @@
+# 환경 변수 및 비밀 키 (API 키 노출 방지를 위해 절대 Git에 커밋하지 않습니다)
+.env
+
+# 파이썬 바이트코드 및 캐시 파일
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 가상환경 (Virtual Environment)
+venv/
+.venv/
+env/
+
+# IDE 및 에디터 설정
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS 임시 파일
+.DS_Store
+Thumbs.db
+desktop.ini
